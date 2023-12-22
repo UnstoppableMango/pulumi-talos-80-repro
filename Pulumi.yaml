@@ -1,0 +1,48 @@
+name: pulumi-talos-80-repro
+runtime: yaml
+description: A minimal Pulumi YAML program
+variables:
+  configuration:
+    fn::invoke:
+      function: talos:machine/getConfiguration:getConfiguration
+      arguments:
+        clusterName: "exampleCluster"
+        machineType: "controlplane"
+        clusterEndpoint: "https://cluster.local:6443"
+        machineSecrets: ${secrets.machineSecrets}
+      return: machineConfiguration
+
+resources:
+  resourceGroup:
+    type: azure-native:resources:ResourceGroup
+    properties:
+      location: eastus
+
+  secrets:
+    type: talos:machine/secrets:Secrets
+    options:
+      dependsOn:
+        - ${resourceGroup}
+
+  configurationApply:
+    type: talos:machine/configurationApply:ConfigurationApply
+    properties:
+      clientConfiguration: ${secrets.clientConfiguration}
+      machineConfigurationInput: ${configuration}
+      node: "10.5.0.2"
+      configPatches:
+        - fn::toJSON:
+            machine:
+              install:
+                disk: "/dev/sdd"
+
+  bootstrap:
+    type: talos:machine:Bootstrap
+    properties:
+      node: "10.5.0.2"
+      clientConfiguration: ${secrets.clientConfiguration}
+    options:
+      dependsOn:
+        - ${configurationApply}
+
+outputs: {}
